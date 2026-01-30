@@ -7,15 +7,14 @@ export interface User {
   password?: string;
   balance: number;
   commission: number;
-  bonusBalance: number; // For admin-granted claimable bonuses
+  bonusBalance: number; 
   role: UserRole;
   avatar: string;
   phone?: string;
   referralCode: string;
   referredBy?: string;
   referralCount: number;
-  createdAt: number;
-  // Turnover (Turn-offer) tracking
+  createdAt: string; // Changed to string for ISO format
   requiredTurnover: number;
   currentTurnover: number;
 }
@@ -27,7 +26,7 @@ export interface Transaction {
   amount: number;
   type: 'DEPOSIT' | 'WITHDRAW';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  timestamp: number;
+  timestamp: string; // Changed to string for ISO format
   method: 'bKash' | 'Nagad' | 'Rocket';
   accountNumber?: string;
   transactionId?: string;
@@ -41,7 +40,7 @@ export interface BetRecord {
   winAmount: number;
   status: 'WIN' | 'LOSS' | 'PENDING';
   details: string;
-  timestamp: number;
+  timestamp: string; // Changed to string for ISO format
 }
 
 export interface Match {
@@ -53,7 +52,7 @@ export interface Match {
   oddsB: number;
   status: 'OPEN' | 'CLOSED' | 'RESOLVED';
   winner?: string;
-  timestamp: number;
+  timestamp: string; // Changed to string for ISO format
 }
 
 export interface AdminSettings {
@@ -62,9 +61,9 @@ export interface AdminSettings {
   rocketNumber: string;
   minDeposit: number;
   minWithdraw: number;
-  referralCommission: number; // % commission for inviter
-  depositBonusPercent: number; // % extra bonus on deposit
-  globalClaimBonus: number; // Fixed bonus amount users can claim from settings
+  referralCommission: number; 
+  depositBonusPercent: number; 
+  globalClaimBonus: number; 
 }
 
 export interface Game {

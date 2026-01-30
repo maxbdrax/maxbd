@@ -102,10 +102,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    const failsafe = setTimeout(() => {
-      setIsLoading(false);
-    }, 5000);
-
     const initApp = async () => {
       try {
         const { data: settingsData } = await supabase.from('admin_settings').select('*').maybeSingle();
@@ -133,11 +129,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {
         console.error("Initialization error:", e);
       } finally {
-        clearTimeout(failsafe);
         setIsLoading(false);
       }
     };
     initApp();
+
+    // Secondary safety failsafe for loading screen
+    const failsafe = setTimeout(() => {
+      setIsLoading(false);
+    }, 4000);
+    
+    return () => clearTimeout(failsafe);
   }, []);
 
   const login = async (username: string, password?: string) => {
