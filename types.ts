@@ -14,9 +14,17 @@ export interface User {
   referralCode: string;
   referredBy?: string;
   referralCount: number;
-  createdAt: string; // Changed to string for ISO format
+  createdAt: string;
   requiredTurnover: number;
   currentTurnover: number;
+}
+
+export interface GlobalNotification {
+  id: string;
+  message: string;
+  type: 'INFO' | 'ALERT' | 'PROMO';
+  timestamp: string;
+  isActive: boolean;
 }
 
 export interface Transaction {
@@ -26,7 +34,7 @@ export interface Transaction {
   amount: number;
   type: 'DEPOSIT' | 'WITHDRAW';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  timestamp: string; // Changed to string for ISO format
+  timestamp: string;
   method: 'bKash' | 'Nagad' | 'Rocket';
   accountNumber?: string;
   transactionId?: string;
@@ -40,7 +48,7 @@ export interface BetRecord {
   winAmount: number;
   status: 'WIN' | 'LOSS' | 'PENDING';
   details: string;
-  timestamp: string; // Changed to string for ISO format
+  timestamp: string;
 }
 
 export interface Match {
@@ -52,7 +60,7 @@ export interface Match {
   oddsB: number;
   status: 'OPEN' | 'CLOSED' | 'RESOLVED';
   winner?: string;
-  timestamp: string; // Changed to string for ISO format
+  timestamp: string;
 }
 
 export interface AdminSettings {
@@ -72,11 +80,4 @@ export interface Game {
   provider: string;
   image: string;
   category: 'SLOTS' | 'LOTTERY' | 'LIVE' | 'CRASH' | 'MATCH';
-}
-
-export enum GameAction {
-  RED = 'RED',
-  GREEN = 'GREEN',
-  BIG = 'BIG',
-  SMALL = 'SMALL'
 }

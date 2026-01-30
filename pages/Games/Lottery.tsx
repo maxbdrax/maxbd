@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getLuckyPrediction } from '../../services/geminiService';
-import { GameAction } from '../../types';
+
+// Fixed error: Removed non-existent and unused GameAction import from types
 
 export const Lottery: React.FC = () => {
   const { currentUser, updateUserBalance, addBetRecord } = useApp();

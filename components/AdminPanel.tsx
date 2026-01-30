@@ -1,403 +1,279 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { AdminSettings, User, Match } from '../types';
+import { AdminSettings, User, Transaction } from '../types';
 
 export const AdminPanel: React.FC = () => {
   const { 
     transactions, updateTransactionStatus, users, adminSettings, 
     updateAdminSettings, adminUpdateUser, deleteUser, matches, 
-    createMatch, resolveMatch, deleteMatch 
+    createMatch, resolveMatch, deleteMatch, sendBroadcast, globalNotifications, deleteBroadcast
   } = useApp();
   
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'USERS' | 'DEPOSITS' | 'WITHDRAWALS' | 'MATCHES' | 'SETTINGS'>('DASHBOARD');
-  const [editingSettings, setEditingSettings] = useState<AdminSettings>(adminSettings);
-  
-  // User Edit State
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'USERS' | 'DEPOSITS' | 'WITHDRAWALS' | 'BROADCAST' | 'SETTINGS'>('DASHBOARD');
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcastType, setBroadcastType] = useState<'INFO' | 'ALERT' | 'PROMO'>('INFO');
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editUsername, setEditUsername] = useState('');
-  const [editPhone, setEditPhone] = useState('');
   const [editBalance, setEditBalance] = useState('');
-  const [editBonus, setEditBonus] = useState('');
-  const [editRequiredTurnover, setEditRequiredTurnover] = useState('');
-
-  // Match form
-  const [mTitle, setMTitle] = useState('');
-  const [mT1, setMT1] = useState('');
-  const [mT2, setMT2] = useState('');
-  const [mO1, setMO1] = useState('1.90');
-  const [mO2, setMO2] = useState('1.90');
 
   const stats = {
     totalUsers: users.length,
-    totalBalance: users.reduce((acc, u) => acc + u.balance, 0),
     pendingDeposits: transactions.filter(t => t.type === 'DEPOSIT' && t.status === 'PENDING').length,
     pendingWithdraws: transactions.filter(t => t.type === 'WITHDRAW' && t.status === 'PENDING').length,
+    totalBalance: users.reduce((acc, u) => acc + (u.balance || 0), 0)
   };
 
-  const handleCreateMatch = async () => {
-    if (!mTitle || !mT1 || !mT2) return alert("সব ঘর পূরণ করুন");
-    await createMatch(mTitle, mT1, mT2, parseFloat(mO1), parseFloat(mO2));
-    setMTitle(''); setMT1(''); setMT2('');
-    alert("নতুন ক্রিকেট বাজি যোগ করা হয়েছে!");
+  const handleBroadcast = async () => {
+    if (!broadcastMsg) return;
+    await sendBroadcast(broadcastMsg, broadcastType);
+    setBroadcastMsg('');
+    alert("Broadcast sent successfully!");
   };
 
-  const handleEditUser = (user: User) => {
-    setEditingUser(user);
-    setEditUsername(user.username);
-    setEditPhone(user.phone || '');
-    setEditBalance(user.balance.toString());
-    setEditBonus(user.bonusBalance.toString());
-    setEditRequiredTurnover(user.requiredTurnover.toString());
-  };
-
-  const saveUserEdits = async () => {
-    if (!editingUser) return;
-    await adminUpdateUser(editingUser.id, {
-      username: editUsername,
-      phone: editPhone,
-      balance: parseFloat(editBalance) || 0,
-      bonusBalance: parseFloat(editBonus) || 0,
-      requiredTurnover: parseFloat(editRequiredTurnover) || 0
-    });
+  const handleUpdateBalance = async () => {
+    if (!editingUser || !editBalance) return;
+    await adminUpdateUser(editingUser.id, { balance: parseFloat(editBalance) });
     setEditingUser(null);
-    alert("ইউজার তথ্য আপডেট করা হয়েছে!");
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    if (window.confirm("আপনি কি নিশ্চিতভাবে এই ইউজারকে ডিলিট করতে চান?")) {
-      await deleteUser(id);
-      alert("ইউজার ডিলিট করা হয়েছে।");
-    }
-  };
-
-  const handleSaveSettings = async () => {
-    await updateAdminSettings(editingSettings);
-    alert("অ্যাপ সেটিংস সফলভাবে আপডেট করা হয়েছে!");
+    setEditBalance('');
+    alert("User balance updated!");
   };
 
   return (
-    <div className="min-h-screen bg-[#001515] text-white flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#001515] text-white flex flex-col md:flex-row font-sans">
       {/* Sidebar */}
-      <div className="w-full md:w-64 bg-[#012a2a] border-r border-white/5 p-6 space-y-2">
-        <h2 className="text-2xl font-black text-accent mb-8 italic tracking-tighter uppercase">Admin Panel</h2>
-        {[
-          { id: 'DASHBOARD', icon: 'fa-chart-line', label: 'ড্যাশবোর্ড' },
-          { id: 'USERS', icon: 'fa-users', label: 'ইউজার লিস্ট' },
-          { id: 'DEPOSITS', icon: 'fa-arrow-down', label: 'ডিপোজিট' },
-          { id: 'WITHDRAWALS', icon: 'fa-arrow-up', label: 'উইথড্র' },
-          { id: 'MATCHES', icon: 'fa-cricket-bat-ball', label: 'ক্রিকেট বাজি' },
-          { id: 'SETTINGS', icon: 'fa-gears', label: 'সেটিংস' },
-        ].map(item => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id as any)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition ${activeTab === item.id ? 'bg-accent text-primary shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
-          >
-            <i className={`fa-solid ${item.icon}`}></i>
-            <span className="text-sm">{item.label}</span>
-          </button>
-        ))}
+      <div className="w-full md:w-72 bg-[#012a2a] border-r border-white/5 p-6 flex flex-col">
+        <div className="mb-10 text-center">
+          <h2 className="text-3xl font-black text-accent italic tracking-tighter uppercase leading-none">ADMIN HUB</h2>
+          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[0.3em] mt-1">Management Suite</p>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          {[
+            { id: 'DASHBOARD', icon: 'fa-chart-pie', label: 'Overview' },
+            { id: 'USERS', icon: 'fa-user-group', label: 'Manage Users' },
+            { id: 'DEPOSITS', icon: 'fa-wallet', label: 'Deposit Requests' },
+            { id: 'WITHDRAWALS', icon: 'fa-money-bill-transfer', label: 'Withdraw Requests' },
+            { id: 'BROADCAST', icon: 'fa-bullhorn', label: 'Broadcasts' },
+            { id: 'SETTINGS', icon: 'fa-sliders', label: 'Global Settings' },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as any)}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black transition-all group ${
+                activeTab === item.id 
+                  ? 'bg-accent text-primary shadow-lg shadow-accent/10' 
+                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <i className={`fa-solid ${item.icon} text-lg`}></i>
+              <span className="text-[11px] uppercase tracking-widest">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="mt-auto pt-6 border-t border-white/5 opacity-30 text-center">
+          <p className="text-[8px] font-bold uppercase">Max999 Engine v2.5</p>
+        </div>
       </div>
 
-      <div className="flex-1 p-8 overflow-y-auto pb-24">
+      {/* Content Area */}
+      <div className="flex-1 p-6 md:p-10 overflow-y-auto pb-32">
         {activeTab === 'DASHBOARD' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { label: 'মোট প্লেয়ার', value: stats.totalUsers, icon: 'fa-users', color: 'text-blue-400' },
-              { label: 'মোট ব্যালেন্স', value: `৳${stats.totalBalance.toFixed(0)}`, icon: 'fa-vault', color: 'text-accent' },
-              { label: 'পেন্ডিং ডিপোজিট', value: stats.pendingDeposits, icon: 'fa-hourglass-start', color: 'text-green-400' },
-              { label: 'পেন্ডিং উইথড্র', value: stats.pendingWithdraws, icon: 'fa-hourglass-end', color: 'text-red-400' },
-            ].map((stat, i) => (
-              <div key={i} className="bg-[#012a2a] p-6 rounded-2xl border border-white/5 shadow-xl">
-                <div className={`text-2xl mb-2 ${stat.color}`}><i className={`fa-solid ${stat.icon}`}></i></div>
-                <p className="text-xs font-bold text-gray-500 uppercase">{stat.label}</p>
-                <p className="text-2xl font-black tracking-tighter">{stat.value}</p>
-              </div>
-            ))}
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { label: 'Total Members', val: stats.totalUsers, color: 'text-blue-400', icon: 'fa-users' },
+                { label: 'Pending Deposits', val: stats.pendingDeposits, color: 'text-green-400', icon: 'fa-arrow-down' },
+                { label: 'Pending Withdraws', val: stats.pendingWithdraws, color: 'text-red-400', icon: 'fa-arrow-up' },
+                { label: 'Total System Liab.', val: `৳${stats.totalBalance.toLocaleString()}`, color: 'text-accent', icon: 'fa-vault' },
+              ].map((s, i) => (
+                <div key={i} className="bg-secondary p-6 rounded-3xl border border-white/5 shadow-xl relative overflow-hidden group">
+                  <i className={`fa-solid ${s.icon} absolute -bottom-2 -right-2 text-6xl opacity-5 group-hover:scale-110 transition`}></i>
+                  <p className="text-[10px] font-black text-gray-500 uppercase mb-2">{s.label}</p>
+                  <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-secondary rounded-[2.5rem] p-8 border border-white/5">
+               <h3 className="text-sm font-black text-white uppercase italic mb-6">Recent User Activity</h3>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-xs">
+                   <thead>
+                     <tr className="text-gray-500 border-b border-white/5">
+                        <th className="pb-4 font-black uppercase">Username</th>
+                        <th className="pb-4 font-black uppercase">Joined</th>
+                        <th className="pb-4 font-black uppercase">Balance</th>
+                        <th className="pb-4 font-black uppercase text-right">Action</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {users.slice(0, 5).map(u => (
+                       <tr key={u.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                         <td className="py-4 font-bold">{u.username}</td>
+                         <td className="py-4 text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
+                         <td className="py-4 font-black text-accent">৳{u.balance.toFixed(2)}</td>
+                         <td className="py-4 text-right">
+                            <button onClick={() => {setEditingUser(u); setEditBalance(u.balance.toString());}} className="text-blue-400 hover:underline">Edit</button>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
           </div>
         )}
 
         {activeTab === 'USERS' && (
-          <div className="bg-[#012a2a] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
-            <div className="p-6 bg-black/20 flex justify-between items-center border-b border-white/5">
-              <h3 className="font-black text-accent uppercase italic">User Management</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-black/10 text-[10px] uppercase tracking-widest text-gray-400">
-                    <th className="px-6 py-4">Player</th>
-                    <th className="px-6 py-4">Balance</th>
-                    <th className="px-6 py-4">Turnover</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {users.map(u => (
-                    <tr key={u.id} className="hover:bg-white/5 transition">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <img src={u.avatar} className="w-10 h-10 rounded-full border border-accent/20" alt="av" />
-                          <div>
-                            <p className="text-sm font-bold text-white">{u.username}</p>
-                            <p className="text-[10px] text-gray-500">{u.phone}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-black text-accent">৳{u.balance.toFixed(2)}</td>
-                      <td className="px-6 py-4 text-xs font-bold text-blue-300">৳{u.currentTurnover.toFixed(0)} / ৳{u.requiredTurnover.toFixed(0)}</td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        <button onClick={() => handleEditUser(u)} className="bg-accent/10 text-accent px-3 py-1.5 rounded-lg hover:bg-accent hover:text-primary transition font-black text-[10px] uppercase">Edit</button>
-                        <button onClick={() => handleDeleteUser(u.id)} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition font-black text-[10px] uppercase">Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'DEPOSITS' && (
-          <div className="space-y-4">
-            <h3 className="text-xl font-black text-accent uppercase italic">Pending Deposits</h3>
-            <div className="grid grid-cols-1 gap-4">
-              {transactions.filter(t => t.type === 'DEPOSIT' && t.status === 'PENDING').map(tx => (
-                <div key={tx.id} className="bg-[#012a2a] p-6 rounded-2xl border border-white/5 flex justify-between items-center shadow-lg">
-                  <div>
-                    <p className="font-black text-white">{tx.username} <span className="text-[10px] text-gray-500 uppercase ml-2">({tx.method})</span></p>
-                    <p className="text-2xl font-black text-accent">৳{tx.amount}</p>
-                    <p className="text-[10px] text-blue-400 font-bold mt-1">TXID: {tx.transactionId}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => updateTransactionStatus(tx.id, 'REJECTED')} className="bg-red-600/20 text-red-500 px-4 py-2 rounded-xl text-xs font-black">REJECT</button>
-                    <button onClick={() => updateTransactionStatus(tx.id, 'APPROVED')} className="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg">APPROVE</button>
-                  </div>
-                </div>
-              ))}
-              {transactions.filter(t => t.type === 'DEPOSIT' && t.status === 'PENDING').length === 0 && (
-                <div className="text-center py-20 opacity-20 italic">কোনো পেন্ডিং ডিপোজিট নেই।</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'WITHDRAWALS' && (
-          <div className="space-y-4">
-            <h3 className="text-xl font-black text-red-500 uppercase italic">Pending Withdrawals</h3>
-            <div className="grid grid-cols-1 gap-4">
-              {transactions.filter(t => t.type === 'WITHDRAW' && t.status === 'PENDING').map(tx => (
-                <div key={tx.id} className="bg-[#012a2a] p-6 rounded-2xl border border-white/5 flex justify-between items-center shadow-lg">
-                  <div>
-                    <p className="font-black text-white">{tx.username} <span className="text-[10px] text-gray-500 uppercase ml-2">({tx.method})</span></p>
-                    <p className="text-2xl font-black text-red-500">৳{tx.amount}</p>
-                    <p className="text-[10px] text-accent font-bold mt-1">A/C: {tx.accountNumber}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => updateTransactionStatus(tx.id, 'REJECTED')} className="bg-red-600/20 text-red-500 px-4 py-2 rounded-xl text-xs font-black">REJECT</button>
-                    <button onClick={() => updateTransactionStatus(tx.id, 'APPROVED')} className="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg">APPROVE</button>
-                  </div>
-                </div>
-              ))}
-              {transactions.filter(t => t.type === 'WITHDRAW' && t.status === 'PENDING').length === 0 && (
-                <div className="text-center py-20 opacity-20 italic">কোনো পেন্ডিং উইথড্র নেই।</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'MATCHES' && (
-          <div className="space-y-8">
-            <div className="bg-[#012a2a] p-8 rounded-2xl border border-white/5 shadow-2xl space-y-6">
-              <h3 className="text-xl font-black uppercase text-accent italic">নতুন ক্রিকেট ম্যাচ অ্যাড করুন</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" placeholder="Match Title (e.g. IPL: CSK vs MI)" value={mTitle} onChange={e => setMTitle(e.target.value)} className="bg-primary p-4 rounded-xl border border-white/5" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="text" placeholder="Team A Name" value={mT1} onChange={e => setMT1(e.target.value)} className="bg-primary p-4 rounded-xl border border-white/5" />
-                  <input type="text" placeholder="Team B Name" value={mT2} onChange={e => setMT2(e.target.value)} className="bg-primary p-4 rounded-xl border border-white/5" />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="number" step="0.01" placeholder="Team A Odds" value={mO1} onChange={e => setMO1(e.target.value)} className="bg-primary p-4 rounded-xl border border-white/5" />
-                  <input type="number" step="0.01" placeholder="Team B Odds" value={mO2} onChange={e => setMO2(e.target.value)} className="bg-primary p-4 rounded-xl border border-white/5" />
-                </div>
-              </div>
-              <button onClick={handleCreateMatch} className="w-full bg-accent text-primary font-black py-4 rounded-xl shadow-lg">ম্যাচ পাবলিশ করুন</button>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-lg font-black uppercase text-accent italic">চলমান ম্যাচ ও ফলাফল</h3>
-              {matches.map(m => (
-                <div key={m.id} className="bg-[#012a2a] p-6 rounded-3xl border border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div>
-                    <p className="text-accent font-black uppercase">{m.title}</p>
-                    <p className="text-xs text-gray-500 font-bold">{m.teamA} (Odds: {m.oddsA}) vs {m.teamB} (Odds: {m.oddsB})</p>
-                    <p className={`text-[10px] mt-1 font-black ${m.status === 'RESOLVED' ? 'text-green-500' : 'text-yellow-500'}`}>Status: {m.status}</p>
-                  </div>
-                  {m.status === 'OPEN' && (
-                    <div className="flex gap-2">
-                      <button onClick={() => resolveMatch(m.id, m.teamA)} className="bg-green-600 px-4 py-2 rounded-xl text-[10px] font-black">{m.teamA} Winner</button>
-                      <button onClick={() => resolveMatch(m.id, m.teamB)} className="bg-green-600 px-4 py-2 rounded-xl text-[10px] font-black">{m.teamB} Winner</button>
-                      <button onClick={() => deleteMatch(m.id)} className="bg-red-600 px-4 py-2 rounded-xl text-[10px] font-black">Delete</button>
+          <div className="space-y-6">
+             <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-black text-white uppercase italic">User Management</h3>
+                <div className="bg-secondary px-4 py-2 rounded-xl border border-white/5 text-xs">Total: {users.length}</div>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               {users.map(u => (
+                 <div key={u.id} className="bg-secondary p-5 rounded-2xl border border-white/5 flex items-center justify-between group">
+                    <div className="flex items-center gap-3">
+                       <img src={u.avatar} className="w-10 h-10 rounded-full border border-white/10" alt="avatar" />
+                       <div>
+                          <p className="text-sm font-black text-white">{u.username}</p>
+                          <p className="text-[10px] text-accent font-bold">৳{u.balance.toFixed(2)}</p>
+                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                       <button onClick={() => {setEditingUser(u); setEditBalance(u.balance.toString());}} className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-xs"><i className="fa-solid fa-pen"></i></button>
+                       <button onClick={() => {if(confirm("Delete this user?")) deleteUser(u.id)}} className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-xs"><i className="fa-solid fa-trash"></i></button>
+                    </div>
+                 </div>
+               ))}
+             </div>
           </div>
+        )}
+
+        {(activeTab === 'DEPOSITS' || activeTab === 'WITHDRAWALS') && (
+          <div className="space-y-6">
+             <h3 className="text-xl font-black text-white uppercase italic">{activeTab === 'DEPOSITS' ? 'Deposit' : 'Withdraw'} Queue</h3>
+             <div className="space-y-4">
+                {transactions.filter(t => t.type === (activeTab === 'DEPOSITS' ? 'DEPOSIT' : 'WITHDRAW') && t.status === 'PENDING').map(tx => (
+                  <div key={tx.id} className="bg-secondary p-6 rounded-[2rem] border border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl animate-in slide-in-from-right duration-300">
+                    <div className="flex-1 flex gap-4 items-center">
+                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${tx.type === 'DEPOSIT' ? 'bg-green-600/10 text-green-500' : 'bg-red-600/10 text-red-500'}`}>
+                          <i className={`fa-solid ${tx.type === 'DEPOSIT' ? 'fa-building-columns' : 'fa-hand-holding-dollar'}`}></i>
+                       </div>
+                       <div>
+                          <p className="text-sm font-black text-white uppercase">{tx.username} <span className="text-gray-600 ml-2 font-bold text-[10px]">{tx.method}</span></p>
+                          <p className="text-[10px] text-gray-500 font-bold">{tx.accountNumber || tx.transactionId}</p>
+                          <p className="text-lg font-black text-accent mt-1">৳{tx.amount}</p>
+                       </div>
+                    </div>
+                    <div className="flex gap-3">
+                       <button onClick={() => updateTransactionStatus(tx.id, 'REJECTED')} className="px-6 py-2.5 bg-red-600/10 text-red-500 rounded-xl font-black text-[10px] uppercase border border-red-500/20 hover:bg-red-600 hover:text-white transition">Reject</button>
+                       <button onClick={() => updateTransactionStatus(tx.id, 'APPROVED')} className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg shadow-green-600/20 hover:scale-105 transition">Approve</button>
+                    </div>
+                  </div>
+                ))}
+                {transactions.filter(t => t.type === (activeTab === 'DEPOSITS' ? 'DEPOSIT' : 'WITHDRAW') && t.status === 'PENDING').length === 0 && (
+                   <div className="text-center py-20 opacity-30 italic font-bold">No pending requests found.</div>
+                )}
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'BROADCAST' && (
+           <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
+             <div className="bg-secondary p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                <h3 className="text-xl font-black text-accent uppercase italic mb-6">Push Broadcast</h3>
+                <div className="space-y-4">
+                   <textarea 
+                    value={broadcastMsg}
+                    onChange={(e) => setBroadcastMsg(e.target.value)}
+                    placeholder="Enter broadcast message here..."
+                    className="w-full bg-primary p-5 rounded-2xl border border-white/10 outline-none text-sm min-h-[140px] focus:border-accent transition"
+                   />
+                   <div className="flex flex-col sm:flex-row gap-4">
+                      <select 
+                        value={broadcastType}
+                        onChange={(e:any) => setBroadcastType(e.target.value)}
+                        className="bg-primary px-4 py-3 rounded-xl border border-white/10 text-xs font-black"
+                      >
+                         <option value="INFO">Information (Blue)</option>
+                         <option value="ALERT">Alert (Red)</option>
+                         <option value="PROMO">Promotion (Gold)</option>
+                      </select>
+                      <button onClick={handleBroadcast} className="flex-1 bg-accent text-primary font-black py-4 rounded-xl shadow-lg uppercase text-xs tracking-widest hover:scale-[1.02] transition">Dispatch To All Users</button>
+                   </div>
+                </div>
+             </div>
+
+             <div className="space-y-3">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">History (Will show in Promotion Tab)</p>
+                {globalNotifications.map(n => (
+                  <div key={n.id} className="bg-secondary p-5 rounded-2xl border border-white/5 flex justify-between items-center group">
+                     <div>
+                        <p className="text-xs font-bold text-white">{n.message}</p>
+                        <p className="text-[8px] text-gray-500 mt-1 uppercase">{new Date(n.timestamp).toLocaleString()} • {n.type}</p>
+                     </div>
+                     <button onClick={() => deleteBroadcast(n.id)} className="text-red-500 p-2 opacity-0 group-hover:opacity-100 transition"><i className="fa-solid fa-trash-can"></i></button>
+                  </div>
+                ))}
+             </div>
+           </div>
         )}
 
         {activeTab === 'SETTINGS' && (
-          <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom duration-500">
-            <div className="bg-[#012a2a] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
-              <div className="flex items-center gap-3 border-l-4 border-accent pl-4">
-                <h3 className="text-xl font-black uppercase text-accent italic">অ্যাপ পেমেন্ট সেটিংস</h3>
+           <div className="max-w-xl space-y-8 animate-in fade-in duration-500">
+              <div className="bg-secondary p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
+                 <h3 className="text-xl font-black text-white uppercase italic mb-8 border-l-4 border-accent pl-4">System Settings</h3>
+                 <div className="grid grid-cols-1 gap-6">
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-gray-500 uppercase">bKash Merchant</label>
+                       <input value={adminSettings.bkashNumber} onChange={(e) => updateAdminSettings({...adminSettings, bkashNumber: e.target.value})} className="w-full bg-primary p-4 rounded-xl border border-white/5 outline-none font-bold" />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-gray-500 uppercase">Nagad Merchant</label>
+                       <input value={adminSettings.nagadNumber} onChange={(e) => updateAdminSettings({...adminSettings, nagadNumber: e.target.value})} className="w-full bg-primary p-4 rounded-xl border border-white/5 outline-none font-bold" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-500 uppercase">Min Deposit (৳)</label>
+                          <input type="number" value={adminSettings.minDeposit} onChange={(e) => updateAdminSettings({...adminSettings, minDeposit: parseInt(e.target.value)})} className="w-full bg-primary p-4 rounded-xl border border-white/5 outline-none font-bold text-accent" />
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-500 uppercase">Min Withdraw (৳)</label>
+                          <input type="number" value={adminSettings.minWithdraw} onChange={(e) => updateAdminSettings({...adminSettings, minWithdraw: parseInt(e.target.value)})} className="w-full bg-primary p-4 rounded-xl border border-white/5 outline-none font-bold text-accent" />
+                       </div>
+                    </div>
+                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">বিকাশ নম্বর</label>
-                  <input 
-                    type="text" 
-                    value={editingSettings.bkashNumber} 
-                    onChange={e => setEditingSettings({...editingSettings, bkashNumber: e.target.value})} 
-                    className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-accent" 
-                    placeholder="bKash Number" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">নগদ নম্বর</label>
-                  <input 
-                    type="text" 
-                    value={editingSettings.nagadNumber} 
-                    onChange={e => setEditingSettings({...editingSettings, nagadNumber: e.target.value})} 
-                    className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-accent" 
-                    placeholder="Nagad Number" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">রকেট নম্বর</label>
-                  <input 
-                    type="text" 
-                    value={editingSettings.rocketNumber} 
-                    onChange={e => setEditingSettings({...editingSettings, rocketNumber: e.target.value})} 
-                    className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-accent" 
-                    placeholder="Rocket Number" 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 border-l-4 border-blue-500 pl-4">
-                    <h3 className="text-sm font-black uppercase text-blue-400 italic">বোনাস ও কমিশন</h3>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase ml-1">ডিপোজিট বোনাস (%)</label>
-                      <input 
-                        type="number" 
-                        value={editingSettings.depositBonusPercent} 
-                        onChange={e => setEditingSettings({...editingSettings, depositBonusPercent: parseInt(e.target.value) || 0})} 
-                        className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-blue-400" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase ml-1">রেফার কমিশন (%)</label>
-                      <input 
-                        type="number" 
-                        value={editingSettings.referralCommission} 
-                        onChange={e => setEditingSettings({...editingSettings, referralCommission: parseInt(e.target.value) || 0})} 
-                        className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-blue-400" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase ml-1">গ্লোবাল ক্লেইম বোনাস (৳)</label>
-                      <input 
-                        type="number" 
-                        value={editingSettings.globalClaimBonus} 
-                        onChange={e => setEditingSettings({...editingSettings, globalClaimBonus: parseInt(e.target.value) || 0})} 
-                        className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-yellow-500" 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 border-l-4 border-red-500 pl-4">
-                    <h3 className="text-sm font-black uppercase text-red-400 italic">ট্রানজেকশন লিমিট</h3>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase ml-1">মিনিমাম ডিপোজিট (৳)</label>
-                      <input 
-                        type="number" 
-                        value={editingSettings.minDeposit} 
-                        onChange={e => setEditingSettings({...editingSettings, minDeposit: parseInt(e.target.value) || 0})} 
-                        className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-red-400" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase ml-1">মিনিমাম উইথড্র (৳)</label>
-                      <input 
-                        type="number" 
-                        value={editingSettings.minWithdraw} 
-                        onChange={e => setEditingSettings({...editingSettings, minWithdraw: parseInt(e.target.value) || 0})} 
-                        className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-red-400" 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <button 
-                onClick={handleSaveSettings} 
-                className="w-full bg-gradient-gold text-primary font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all mt-4"
-              >
-                Save All Settings
-              </button>
-            </div>
-          </div>
+           </div>
         )}
       </div>
 
       {/* Edit User Modal */}
       {editingUser && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-secondary w-full max-w-lg rounded-[2.5rem] p-8 border border-white/10 shadow-2xl space-y-6 animate-in zoom-in duration-300">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-black text-accent uppercase italic">ইউজার তথ্য পরিবর্তন</h3>
-              <button onClick={() => setEditingUser(null)} className="text-gray-500 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[9px] font-black text-gray-500 uppercase ml-1">প্লেয়ার ইউজারনেম</label>
-                <input type="text" value={editUsername} onChange={e => setEditUsername(e.target.value)} className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-bold" />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+           <div className="bg-secondary w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl space-y-6">
+              <div className="text-center">
+                 <h3 className="text-xl font-black text-white uppercase italic">Modify Member</h3>
+                 <p className="text-xs text-gray-400 font-bold uppercase mt-1">{editingUser.username}</p>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-gray-500 uppercase ml-1">ফোন নম্বর</label>
-                <input type="text" value={editPhone} onChange={e => setEditPhone(e.target.value)} className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-bold" />
+              <div className="space-y-4">
+                 <div>
+                    <label className="text-[10px] font-black text-gray-500 uppercase block mb-1">Update Balance (৳)</label>
+                    <input 
+                      type="number" 
+                      value={editBalance}
+                      onChange={(e) => setEditBalance(e.target.value)}
+                      className="w-full bg-primary border border-white/10 rounded-xl px-5 py-4 text-2xl font-black text-accent outline-none"
+                    />
+                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-gray-500 uppercase ml-1">ব্যালেন্স (৳)</label>
-                <input type="number" value={editBalance} onChange={e => setEditBalance(e.target.value)} className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-accent text-lg" />
+              <div className="flex gap-4">
+                 <button onClick={() => setEditingUser(null)} className="flex-1 bg-white/5 py-4 rounded-2xl font-black text-xs uppercase">Cancel</button>
+                 <button onClick={handleUpdateBalance} className="flex-1 bg-accent text-primary py-4 rounded-2xl font-black text-xs uppercase shadow-lg">Save Changes</button>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-red-500 uppercase ml-1">বোনাস ব্যালেন্স (৳)</label>
-                <input type="number" value={editBonus} onChange={e => setEditBonus(e.target.value)} className="w-full bg-red-900/10 p-4 rounded-2xl border border-red-500/20 font-black text-red-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-blue-500 uppercase ml-1">টার্নওভার রিকয়ার্ড (৳)</label>
-                <input type="number" value={editRequiredTurnover} onChange={e => setEditRequiredTurnover(e.target.value)} className="w-full bg-primary p-4 rounded-2xl border border-white/5 font-black text-blue-400" />
-              </div>
-            </div>
-            
-            <div className="flex gap-3 pt-4">
-              <button onClick={() => setEditingUser(null)} className="flex-1 bg-white/5 py-4 rounded-2xl font-black text-xs uppercase hover:bg-white/10 transition">Cancel</button>
-              <button onClick={saveUserEdits} className="flex-1 bg-accent text-primary py-4 rounded-2xl font-black text-xs uppercase shadow-lg hover:bg-yellow-400 transition">Save Changes</button>
-            </div>
-          </div>
+           </div>
         </div>
       )}
     </div>

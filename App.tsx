@@ -15,6 +15,7 @@ import { CrazyTime } from './pages/Games/CrazyTime';
 import { FortuneGems } from './pages/Games/FortuneGems';
 import { Profile } from './pages/Profile';
 import { Invite } from './pages/Invite';
+import { Promotion } from './pages/Promotion';
 import { AdminPanel } from './components/AdminPanel';
 
 // Toast Notification Component
@@ -136,6 +137,7 @@ const AppContent: React.FC = () => {
       case 'game_fortunegems': return <FortuneGems />;
       case 'profile': return <Profile />;
       case 'invite': return <Invite />;
+      case 'promotion': return <Promotion />;
       default: return <Home onGameSelect={(id) => setActiveTab(id)} onWalletClick={() => setActiveTab('wallet')} />;
     }
   };
@@ -145,7 +147,7 @@ const AppContent: React.FC = () => {
       {!showAdmin && <Header onMenuToggle={() => currentUser.role === 'ADMIN' ? setShowAdmin(true) : setActiveTab('profile')} />}
       <main className="pb-20">{renderContent()}</main>
       {!showAdmin && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
-      {showAdmin && <button onClick={() => setShowAdmin(false)} className="fixed bottom-6 right-6 bg-accent text-primary w-14 h-14 rounded-full shadow-2xl z-[100] border-4 border-[#011d1d]"><i className="fa-solid fa-power-off"></i></button>}
+      {showAdmin && <button onClick={() => setShowAdmin(false)} className="fixed bottom-6 right-6 bg-accent text-primary w-14 h-14 rounded-full shadow-2xl z-[100] border-4 border-[#011d1d] flex items-center justify-center transition active:scale-90"><i className="fa-solid fa-house"></i></button>}
       
       {/* Global Notifications Container */}
       <div className="fixed top-20 right-6 flex flex-col gap-3 z-[100]">
