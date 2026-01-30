@@ -60,12 +60,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const initApp = async () => {
       try {
-        const { data: settingsData, error: settingsError } = await supabase.from('admin_settings').select('*').maybeSingle();
+        const { data: settingsData } = await supabase.from('admin_settings').select('*').maybeSingle();
         if (settingsData) setAdminSettings(settingsData);
-        else if (!settingsError) {
-          // Attempt to insert if not exists
-          await supabase.from('admin_settings').insert([DEFAULT_SETTINGS]);
-        }
+        else await supabase.from('admin_settings').insert([DEFAULT_SETTINGS]);
 
         const { data: matchData } = await supabase.from('matches').select('*').order('timestamp', { ascending: false });
         if (matchData) setMatches(matchData);
@@ -110,32 +107,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .eq('password', password || '123456')
         .maybeSingle();
 
-      if (error) return { success: false, message: "ডাটাবেস কানেকশন এরর: " + error.message };
+      if (error) return { success: false, message: "Database error: " + error.message };
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('cv_user_session', JSON.stringify(user));
         if (user.role === 'ADMIN') fetchAdminData();
-        return { success: true, message: "লগইন সফল হয়েছে" };
+        return { success: true, message: "Login successful" };
       }
-      return { success: false, message: "ইউজারনেম অথবা পাসওয়ার্ড ভুল" };
+      return { success: false, message: "Invalid username or password" };
     } catch (err: any) {
-      return { success: false, message: "সার্ভার এরর" };
+      return { success: false, message: "Server connection failed" };
     }
   };
 
   const signup = async (username: string, password?: string, phone?: string, referralCode?: string, adminSecret?: string) => {
     try {
-      // 1. Check uniqueness
       const { data: existing, error: checkError } = await supabase.from('users').select('username').eq('username', username).maybeSingle();
-      
-      if (checkError) {
-        if (checkError.message.includes("permission denied")) {
-          return { success: false, message: "ডাটাবেস পারমিশন নেই। দয়া করে SQL Editor এ গিয়ে পারমিশন কোড রান করুন।" };
-        }
-        return { success: false, message: "চেক এরর: " + checkError.message };
-      }
-
-      if (existing) return { success: false, message: "এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হয়েছে" };
+      if (checkError) return { success: false, message: "Connection error: " + checkError.message };
+      if (existing) return { success: false, message: "Username already exists" };
 
       const role = (adminSecret === 'CV666_ADMIN_SEC') ? 'ADMIN' : 'USER';
       const newUser = {
@@ -155,23 +144,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       const { data, error } = await supabase.from('users').insert([newUser]).select().single();
-      
-      if (error) {
-        console.error("Detailed Signup Error:", error);
-        if (error.message.includes("permission denied")) {
-          return { success: false, message: "পারমিশন ডিনাইড! আপনার সুপাবেস ড্যাশবোর্ডে SQL কোডটি রান করতে হবে।" };
-        }
-        return { success: false, message: "রেজিস্ট্রেশন এরর: " + error.message };
-      }
+      if (error) return { success: false, message: "Signup failed: " + error.message };
 
       if (data) {
         setCurrentUser(data);
         localStorage.setItem('cv_user_session', JSON.stringify(data));
-        return { success: true, message: "অ্যাকাউন্ট তৈরি সফল হয়েছে" };
+        return { success: true, message: "Account created successfully" };
       }
-      return { success: false, message: "রেজিস্ট্রেশন ব্যর্থ হয়েছে" };
+      return { success: false, message: "Signup failed" };
     } catch (err: any) {
-      return { success: false, message: "সার্ভারের সাথে সংযোগ ত্রুটি" };
+      return { success: false, message: "Unknown error occurred" };
     }
   };
 
@@ -183,18 +165,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshBalance = async () => {
     if (!currentUser) return;
     try {
-        const { data } = await supabase.from('users').select('balance, bonusBalance, commission, currentTurnover, requiredTurnover').eq('id', currentUser.id).single();
-        if (data) {
-          setCurrentUser(prev => prev ? { ...prev, ...data } : null);
-        }
+      const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
+      if (data) setCurrentUser(data);
     } catch (e) {
-        console.error("Balance refresh error", e);
+      console.error("Refresh error", e);
     }
   };
 
   const requestDeposit = async (method: any, amount: number, txId: string) => {
     if (!currentUser) return;
-    const { error } = await supabase.from('transactions').insert([{
+    await supabase.from('transactions').insert([{
       userId: currentUser.id,
       username: currentUser.username,
       amount,
@@ -204,13 +184,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       transactionId: txId,
       timestamp: new Date().toISOString(),
     }]);
-    if (error) alert("ডিপোজিট রিকোয়েস্ট ব্যর্থ: " + error.message);
     if (currentUser.role === 'ADMIN') fetchAdminData();
   };
 
   const requestWithdraw = async (method: any, amount: number, accountNumber: string) => {
     if (!currentUser || currentUser.balance < amount) return;
-    const { error } = await supabase.from('transactions').insert([{
+    await supabase.from('transactions').insert([{
       userId: currentUser.id,
       username: currentUser.username,
       amount,
@@ -220,7 +199,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       accountNumber,
       timestamp: new Date().toISOString(),
     }]);
-    if (error) alert("উইথড্র রিকোয়েস্ট ব্যর্থ: " + error.message);
     if (currentUser.role === 'ADMIN') fetchAdminData();
   };
 
@@ -233,7 +211,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (user) {
         let newBalance = Number(user.balance);
         let newTurnover = Number(user.requiredTurnover);
-        
         if (tx.type === 'DEPOSIT') {
           const bonus = (Number(tx.amount) * Number(adminSettings.depositBonusPercent)) / 100;
           newBalance += (Number(tx.amount) + bonus);
@@ -241,11 +218,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           newBalance -= Number(tx.amount);
         }
-        
         await supabase.from('users').update({ balance: newBalance, requiredTurnover: newTurnover }).eq('id', tx.userId);
       }
     }
-
     await supabase.from('transactions').update({ status }).eq('id', id);
     fetchAdminData();
     refreshBalance();
@@ -255,14 +230,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { data } = await supabase.from('bet_history').insert([{
       userId, gameTitle, amount, winAmount, status, details, timestamp: new Date().toISOString()
     }]).select().single();
-    
     if (currentUser) {
       await supabase.from('users').update({ 
         currentTurnover: Number(currentUser.currentTurnover) + Number(amount) 
       }).eq('id', userId);
       refreshBalance();
     }
-    
     return data?.id || '';
   };
 
@@ -273,8 +246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateAdminSettings = async (settings: AdminSettings) => {
-    const { error } = await supabase.from('admin_settings').update(settings).eq('id', (settings as any).id || 1);
-    if (error) alert("সেটিংস আপডেট ব্যর্থ: " + error.message);
+    await supabase.from('admin_settings').update(settings).eq('id', (settings as any).id || 1);
     setAdminSettings(settings);
   };
 
@@ -309,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) return;
     const bonus = Number(adminSettings.globalClaimBonus);
     await updateUserBalance(currentUser.id, Number(currentUser.balance) + bonus);
-    alert(`অভিনন্দন! আপনি ৳${bonus} বোনাস পেয়েছেন।`);
+    alert(`Success! You claimed ৳${bonus} bonus.`);
   };
 
   const adminUpdateUser = async (id: string, updateData: any) => {
