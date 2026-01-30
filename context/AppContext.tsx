@@ -58,6 +58,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Failsafe: যদি সুপাবেস কানেকশন স্লো থাকে, তবে ৫ সেকেন্ড পর এমনিতেই লোডিং শেষ করে দিবে
+    const failsafe = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000);
+
     const initApp = async () => {
       try {
         const { data: settingsData } = await supabase.from('admin_settings').select('*').maybeSingle();
@@ -81,6 +86,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {
         console.error("Initialization error:", e);
       } finally {
+        clearTimeout(failsafe);
         setIsLoading(false);
       }
     };
