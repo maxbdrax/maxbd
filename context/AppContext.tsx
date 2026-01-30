@@ -1,7 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Transaction, AdminSettings, BetRecord, Match } from '../types';
-import { supabase } from '../services/supabase';
 
 interface AppContextType {
   currentUser: User | null;
@@ -37,8 +35,14 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const generateReferralCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
-const ADMIN_SECRET_KEY = 'CV666_ADMIN_SEC'; 
+const STORAGE_KEYS = {
+  USERS: 'cv666_demo_users',
+  CURRENT_USER: 'cv666_demo_current_user',
+  TRANSACTIONS: 'cv666_demo_transactions',
+  BETS: 'cv666_demo_bets',
+  MATCHES: 'cv666_demo_matches',
+  SETTINGS: 'cv666_demo_settings'
+};
 
 const DEFAULT_SETTINGS: AdminSettings = {
   bkashNumber: '01700000000',
@@ -47,8 +51,8 @@ const DEFAULT_SETTINGS: AdminSettings = {
   minDeposit: 100,
   minWithdraw: 500,
   referralCommission: 2,
-  depositBonusPercent: 0,
-  globalClaimBonus: 0
+  depositBonusPercent: 10,
+  globalClaimBonus: 50
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,158 +64,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchBetHistory = async () => {
-    if (!currentUser) return;
-    try {
-      let query = supabase.from('bets').select('*').order('timestamp', { ascending: false });
-      if (currentUser.role !== 'ADMIN') {
-        query = query.eq('userId', currentUser.id);
-      }
-      const { data, error } = await query;
-      if (data) setBetHistory(data);
-      if (error) console.error("Error fetching bets:", error);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
+  // Initialize Data from LocalStorage
   useEffect(() => {
-    const initData = async () => {
-      setIsLoading(true);
+    const loadData = () => {
       try {
-        const { data: settingsData } = await supabase.from('settings').select('*').single();
-        if (settingsData) setAdminSettings(settingsData);
+        const savedUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
+        const savedCurrentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
+        const savedTxs = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]');
+        const savedBets = JSON.parse(localStorage.getItem(STORAGE_KEYS.BETS) || '[]');
+        const savedMatches = JSON.parse(localStorage.getItem(STORAGE_KEYS.MATCHES) || '[]');
+        const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || JSON.stringify(DEFAULT_SETTINGS));
 
-        const { data: matchesData } = await supabase.from('matches').select('*').order('timestamp', { ascending: false });
-        if (matchesData) setMatches(matchesData);
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-          if (profile) {
-            setCurrentUser(profile);
-            
-            // Fetch relevant data based on role
-            if (profile.role === 'ADMIN') {
-              const { data: allUsers } = await supabase.from('profiles').select('*');
-              if (allUsers) setUsers(allUsers);
-              
-              const { data: allTransactions } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
-              if (allTransactions) setTransactions(allTransactions);
-
-              const { data: allBets } = await supabase.from('bets').select('*').order('timestamp', { ascending: false });
-              if (allBets) setBetHistory(allBets);
-            } else {
-              const { data: userTransactions } = await supabase.from('transactions').select('*').eq('userId', profile.id).order('timestamp', { ascending: false });
-              if (userTransactions) setTransactions(userTransactions);
-
-              const { data: userBets } = await supabase.from('bets').select('*').eq('userId', profile.id).order('timestamp', { ascending: false });
-              if (userBets) setBetHistory(userBets);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Supabase Init Error:", err);
+        setUsers(savedUsers);
+        setCurrentUser(savedCurrentUser);
+        setTransactions(savedTxs);
+        setBetHistory(savedBets);
+        setMatches(savedMatches);
+        setAdminSettings(savedSettings);
+      } catch (e) {
+        console.error("Load Data Error", e);
       } finally {
         setIsLoading(false);
       }
     };
-    initData();
+    loadData();
   }, []);
 
-  const login = async (username: string, password?: string) => {
-    try {
-      const email = `${username.toLowerCase().replace(/\s/g, '')}@cv666.com`;
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: password || 'default_password'
-      });
-
-      if (error) return { success: false, message: error.message };
-      if (!data.user) return { success: false, message: "User not found" };
-
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-      if (profile) {
-        setCurrentUser(profile);
-        // Refresh bets immediately
-        let query = supabase.from('bets').select('*').order('timestamp', { ascending: false });
-        if (profile.role !== 'ADMIN') query = query.eq('userId', profile.id);
-        const { data: userBets } = await query;
-        if (userBets) setBetHistory(userBets);
-        return { success: true, message: "Login successful" };
-      }
-      return { success: false, message: "Profile loading failed" };
-    } catch (e: any) {
-      return { success: false, message: e.message };
+  // Save Data to LocalStorage whenever state changes
+  useEffect(() => {
+    if (!isLoading) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+      localStorage.setItem(STORAGE_KEYS.BETS, JSON.stringify(betHistory));
+      localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(matches));
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(adminSettings));
     }
+  }, [currentUser, users, transactions, betHistory, matches, adminSettings, isLoading]);
+
+  const login = async (username: string, password?: string) => {
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (user && (!password || user.password === password)) {
+      setCurrentUser(user);
+      return { success: true, message: "Login successful" };
+    }
+    return { success: false, message: "Invalid username or password" };
   };
 
   const signup = async (username: string, password?: string, phone?: string, referralCode?: string, adminSecret?: string) => {
-    try {
-      if (!password || password.length < 6) return { success: false, message: "Password must be at least 6 characters" };
+    if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+      return { success: false, message: "Username already exists" };
+    }
 
-      let role: 'USER' | 'ADMIN' = 'USER';
-      if (adminSecret && adminSecret === ADMIN_SECRET_KEY) role = 'ADMIN';
-      else if (adminSecret) return { success: false, message: "Invalid Admin Secret Key!" };
+    const role = (adminSecret === 'CV666_ADMIN_SEC') ? 'ADMIN' : 'USER';
+    const newUser: User = {
+      id: Math.random().toString(36).substr(2, 9),
+      username,
+      password: password || '123456',
+      balance: role === 'ADMIN' ? 999999 : 0,
+      commission: 0,
+      bonusBalance: 0,
+      role: role as any,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+      referralCode: Math.random().toString(36).substr(2, 6).toUpperCase(),
+      referralCount: 0,
+      createdAt: Date.now(),
+      requiredTurnover: 0,
+      currentTurnover: 0,
+      phone
+    };
 
-      const email = `${username.toLowerCase().replace(/\s/g, '')}@cv666.com`;
-      const { data, error } = await supabase.auth.signUp({ email, password });
+    setUsers(prev => [...prev, newUser]);
+    setCurrentUser(newUser);
+    return { success: true, message: "Account created" };
+  };
 
-      if (error) return { success: false, message: error.message };
-      if (!data.user) return { success: false, message: "Signup failed" };
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  };
 
-      let referredBy: string | undefined;
-      if (referralCode) {
-        const { data: referrer } = await supabase.from('profiles').select('id').eq('referralCode', referralCode).single();
-        if (referrer) referredBy = referrer.id;
-      }
-
-      const newUser: User = {
-        id: data.user.id,
-        username,
-        balance: role === 'ADMIN' ? 999999 : 0,
-        commission: 0,
-        bonusBalance: 0,
-        role: role,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-        referralCode: generateReferralCode(),
-        referredBy,
-        referralCount: 0,
-        createdAt: Date.now(),
-        requiredTurnover: 0,
-        currentTurnover: 0,
-        phone
-      };
-
-      await supabase.from('profiles').insert(newUser);
-      if (referredBy) await supabase.rpc('increment_referral_count', { user_id: referredBy });
-
-      setCurrentUser(newUser);
-      setBetHistory([]);
-      return { success: true, message: "Account created successfully" };
-    } catch (e: any) {
-      return { success: false, message: e.message };
+  const refreshBalance = () => {
+    if (currentUser) {
+      const updatedUser = users.find(u => u.id === currentUser.id);
+      if (updatedUser) setCurrentUser(updatedUser);
     }
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(null);
-    setBetHistory([]);
-    setUsers([]);
-    setTransactions([]);
-  };
-
-  const refreshBalance = async () => {
+  const requestDeposit = async (method: any, amount: number, txId: string) => {
     if (!currentUser) return;
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-    if (profile) setCurrentUser(profile);
-    fetchBetHistory();
-  };
-
-  const requestDeposit = async (method: 'bKash' | 'Nagad' | 'Rocket', amount: number, txId: string) => {
-    if (!currentUser) return;
-    const newTx = {
+    const newTx: Transaction = {
+      id: Math.random().toString(36).substr(2, 9),
       userId: currentUser.id,
       username: currentUser.username,
       amount,
@@ -221,13 +164,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       transactionId: txId,
       timestamp: Date.now(),
     };
-    const { data } = await supabase.from('transactions').insert(newTx).select().single();
-    if (data) setTransactions(prev => [data, ...prev]);
+    setTransactions(prev => [newTx, ...prev]);
   };
 
-  const requestWithdraw = async (method: 'bKash' | 'Nagad' | 'Rocket', amount: number, accountNumber: string) => {
+  const requestWithdraw = async (method: any, amount: number, accountNumber: string) => {
     if (!currentUser || currentUser.balance < amount) return;
-    const newTx = {
+    const newTx: Transaction = {
+      id: Math.random().toString(36).substr(2, 9),
       userId: currentUser.id,
       username: currentUser.username,
       amount,
@@ -237,124 +180,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       accountNumber,
       timestamp: Date.now(),
     };
-    const { data } = await supabase.from('transactions').insert(newTx).select().single();
-    if (data) setTransactions(prev => [data, ...prev]);
+    setTransactions(prev => [newTx, ...prev]);
   };
 
   const updateTransactionStatus = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-    const { data: tx } = await supabase.from('transactions').select('*').eq('id', id).single();
-    if (!tx || tx.status !== 'PENDING') return;
+    const txIndex = transactions.findIndex(t => t.id === id);
+    if (txIndex === -1 || transactions[txIndex].status !== 'PENDING') return;
 
+    const tx = transactions[txIndex];
     if (status === 'APPROVED') {
-      const { data: user } = await supabase.from('profiles').select('*').eq('id', tx.userId).single();
-      if (user) {
+      const userIndex = users.findIndex(u => u.id === tx.userId);
+      if (userIndex !== -1) {
+        const updatedUsers = [...users];
         if (tx.type === 'DEPOSIT') {
           const bonus = (tx.amount * adminSettings.depositBonusPercent) / 100;
-          await supabase.from('profiles').update({
-            balance: user.balance + tx.amount + bonus,
-            requiredTurnover: user.requiredTurnover + tx.amount
-          }).eq('id', tx.userId);
+          updatedUsers[userIndex].balance += (tx.amount + bonus);
+          updatedUsers[userIndex].requiredTurnover += tx.amount;
         } else {
-          await supabase.from('profiles').update({ balance: user.balance - tx.amount }).eq('id', tx.userId);
+          updatedUsers[userIndex].balance -= tx.amount;
         }
+        setUsers(updatedUsers);
       }
     }
-    await supabase.from('transactions').update({ status }).eq('id', id);
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+
+    const updatedTxs = [...transactions];
+    updatedTxs[txIndex].status = status;
+    setTransactions(updatedTxs);
     refreshBalance();
   };
 
-  const addBetRecord = async (userId: string, gameTitle: string, amount: number, winAmount: number, status: 'WIN' | 'LOSS' | 'PENDING', details: string) => {
-    const newBet = { userId, gameTitle, amount, winAmount, status, details, timestamp: Date.now() };
-    const { data, error } = await supabase.from('bets').insert(newBet).select().single();
-    if (error) return '';
-    if (data) setBetHistory(prev => [data, ...prev]);
-    
-    // Turnover and commission update logic
-    const { data: user } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (user) {
-      await supabase.from('profiles').update({ currentTurnover: user.currentTurnover + amount }).eq('id', userId);
-      if (user.referredBy) {
-        const commission = (amount * adminSettings.referralCommission) / 100;
-        const { data: referrer } = await supabase.from('profiles').select('commission').eq('id', user.referredBy).single();
-        if (referrer) await supabase.from('profiles').update({ commission: referrer.commission + commission }).eq('id', user.referredBy);
-      }
-    }
-    refreshBalance();
-    return data?.id || '';
-  };
-
-  const updateBetStatus = async (id: string, winAmount: number, status: 'WIN' | 'LOSS') => {
-    await supabase.from('bets').update({ winAmount, status }).eq('id', id);
-    setBetHistory(prev => prev.map(b => b.id === id ? { ...b, winAmount, status } : b));
-  };
-
-  const createMatch = async (title: string, teamA: string, teamB: string, oddsA: number, oddsB: number) => {
-    const newMatch = { title, teamA, teamB, oddsA, oddsB, status: 'OPEN', timestamp: Date.now() };
-    const { data } = await supabase.from('matches').insert(newMatch).select().single();
-    if (data) setMatches(prev => [data, ...prev]);
-  };
-
-  const placeMatchBet = async (matchId: string, team: string, amount: number) => {
-    if (!currentUser || currentUser.balance < amount) return false;
-    await updateUserBalance(currentUser.id, currentUser.balance - amount);
-    await addBetRecord(currentUser.id, 'Create Baji', amount, 0, 'PENDING', `Bet on ${team} for match ID: ${matchId}`);
-    return true;
-  };
-
-  const resolveMatch = async (matchId: string, winnerTeam: string) => {
-    await supabase.from('matches').update({ status: 'RESOLVED', winner: winnerTeam }).eq('id', matchId);
-    setMatches(prev => prev.map(m => m.id === matchId ? { ...m, status: 'RESOLVED', winner: winnerTeam } : m));
-    refreshBalance();
-  };
-
-  const deleteMatch = async (matchId: string) => {
-    await supabase.from('matches').delete().eq('id', matchId);
-    setMatches(prev => prev.filter(m => m.id !== matchId));
-  };
-
-  const updateAdminSettings = async (settings: AdminSettings) => {
-    await supabase.from('settings').upsert({ id: 1, ...settings });
-    setAdminSettings(settings);
+  const addBetRecord = async (userId: string, gameTitle: string, amount: number, winAmount: number, status: any, details: string) => {
+    const newBet: BetRecord = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId,
+      gameTitle,
+      amount,
+      winAmount,
+      status,
+      details,
+      timestamp: Date.now()
+    };
+    setBetHistory(prev => [newBet, ...prev]);
+    return newBet.id;
   };
 
   const updateUserBalance = async (userId: string, newBalance: number) => {
-    await supabase.from('profiles').update({ balance: newBalance }).eq('id', userId);
-    if (currentUser?.id === userId) refreshBalance();
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, balance: newBalance } : u));
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => prev ? { ...prev, balance: newBalance } : null);
+    }
   };
 
-  const giveUserBonus = async (userId: string, amount: number) => {
-    const { data: user } = await supabase.from('profiles').select('bonusBalance').eq('id', userId).single();
-    if (user) await supabase.from('profiles').update({ bonusBalance: user.bonusBalance + amount }).eq('id', userId);
+  const updateAdminSettings = async (settings: AdminSettings) => setAdminSettings(settings);
+  const createMatch = async (title: string, teamA: string, teamB: string, oddsA: number, oddsB: number) => {
+    const newMatch: Match = { id: Math.random().toString(36).substr(2, 9), title, teamA, teamB, oddsA, oddsB, status: 'OPEN', timestamp: Date.now() };
+    setMatches(prev => [newMatch, ...prev]);
   };
-
-  const adminUpdateUser = async (userId: string, data: Partial<User>) => {
-    await supabase.from('profiles').update(data).eq('id', userId);
-    if (currentUser?.id === userId) refreshBalance();
+  const resolveMatch = async (id: string, winner: string) => setMatches(prev => prev.map(m => m.id === id ? { ...m, status: 'RESOLVED', winner } : m));
+  const deleteMatch = async (id: string) => setMatches(prev => prev.filter(m => m.id !== id));
+  const placeMatchBet = async (matchId: string, team: string, amount: number) => {
+    if (!currentUser || currentUser.balance < amount) return false;
+    await updateUserBalance(currentUser.id, currentUser.balance - amount);
+    await addBetRecord(currentUser.id, 'Match Betting', amount, 0, 'PENDING', `Bet on ${team}`);
+    return true;
   };
-
-  const claimBonus = async () => {
-    if (!currentUser || currentUser.bonusBalance <= 0) return;
-    await supabase.from('profiles').update({ balance: currentUser.balance + currentUser.bonusBalance, bonusBalance: 0 }).eq('id', currentUser.id);
-    refreshBalance();
-  };
-
   const claimGlobalBonus = async () => {
-    if (!currentUser || adminSettings.globalClaimBonus <= 0) return;
-    await supabase.from('profiles').update({ bonusBalance: currentUser.bonusBalance + adminSettings.globalClaimBonus }).eq('id', currentUser.id);
-    refreshBalance();
+    if (!currentUser) return;
+    const bonus = adminSettings.globalClaimBonus;
+    await updateUserBalance(currentUser.id, currentUser.balance + bonus);
+    alert(`Congratulations! You claimed ৳${bonus} demo bonus.`);
   };
-
-  const claimCommission = async () => {
-    if (!currentUser || currentUser.commission <= 0) return;
-    await supabase.from('profiles').update({ balance: currentUser.balance + currentUser.commission, commission: 0 }).eq('id', currentUser.id);
-    refreshBalance();
-  };
-
-  const deleteUser = async (userId: string) => {
-    await supabase.from('profiles').delete().eq('id', userId);
-    setUsers(prev => prev.filter(u => u.id !== userId));
-  };
+  const claimCommission = async () => {};
+  const claimBonus = async () => {};
+  const giveUserBonus = async () => {};
+  const adminUpdateUser = async (id: string, data: any) => setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
+  const deleteUser = async (id: string) => setUsers(prev => prev.filter(u => u.id !== id));
+  const fetchBetHistory = async () => {};
+  const updateBetStatus = async () => {};
 
   return (
     <AppContext.Provider value={{ 
