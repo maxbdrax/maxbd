@@ -11,7 +11,7 @@ export const Header: React.FC<{ onMenuToggle: () => void }> = ({ onMenuToggle })
         <button onClick={onMenuToggle} className="text-white text-xl">
           <i className="fa-solid fa-bars-staggered"></i>
         </button>
-        <h1 className="text-xl font-bold text-accent tracking-tighter">CV666.COM</h1>
+        <h1 className="text-xl font-bold text-accent tracking-tighter">MAX999.COM</h1>
       </div>
       
       {currentUser && (

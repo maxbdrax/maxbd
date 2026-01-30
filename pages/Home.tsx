@@ -4,6 +4,8 @@ import { Game } from '../types';
 import { useApp } from '../context/AppContext';
 
 const GAMES: Game[] = [
+  { id: 'game_crazytime', title: 'Crazy Time', provider: 'EVOLUTION', category: 'LIVE', image: 'https://images.unsplash.com/photo-1596838132731-dd96a3375935?q=80&w=400&auto=format&fit=crop' },
+  { id: 'game_fortunegems', title: 'Fortune Gems 3', provider: 'JILI', category: 'SLOTS', image: 'https://i.postimg.cc/mD8x1h6m/fortunegems.jpg' },
   { id: 'game_7updown', title: '7 Up 7 Down', provider: 'LIVE', category: 'LIVE', image: 'https://i.postimg.cc/J4LbXHy2/gcs-elott-SEAlott-1741932452761.webp' },
   { id: 'game_moneycoming', title: 'Money Coming', provider: 'JILI', category: 'SLOTS', image: 'https://i.postimg.cc/5tRBQPvm/KM0021.avif' },
   { id: 'game_superace', title: 'Super Ace', provider: 'JILI', category: 'SLOTS', image: 'https://i.postimg.cc/g0nRpv5D/JL0033.avif' },
@@ -24,11 +26,11 @@ export const Home: React.FC<{ onGameSelect: (id: string) => void, onWalletClick:
         <img 
           src="https://i.postimg.cc/7Y3ntn8x/1748183577854-photo-2025-05-25-22-32-13.jpg" 
           className="w-full h-full object-cover" 
-          alt="CV666 Elite Banner" 
+          alt="Max999 Elite Banner" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-primary via-transparent to-transparent"></div>
         <div className="absolute bottom-4 left-6">
-          <h2 className="text-3xl font-black text-accent drop-shadow-2xl italic tracking-tighter uppercase leading-none">CV666 ELITE</h2>
+          <h2 className="text-3xl font-black text-accent drop-shadow-2xl italic tracking-tighter uppercase leading-none">MAX999 ELITE</h2>
           <p className="text-white font-bold text-xs uppercase tracking-widest mt-1 opacity-80">The Ultimate Gaming Hub</p>
         </div>
       </div>

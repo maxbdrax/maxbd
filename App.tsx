@@ -11,12 +11,28 @@ import { CrashGame } from './pages/Games/CrashGame';
 import { SuperAce } from './pages/Games/SuperAce';
 import { MatchBetting } from './pages/Games/MatchBetting';
 import { MoneyComing } from './pages/Games/MoneyComing';
+import { CrazyTime } from './pages/Games/CrazyTime';
+import { FortuneGems } from './pages/Games/FortuneGems';
 import { Profile } from './pages/Profile';
 import { Invite } from './pages/Invite';
 import { AdminPanel } from './components/AdminPanel';
 
+// Toast Notification Component
+const Toast: React.FC<{ type: string, message: string, onClose: () => void }> = ({ type, message, onClose }) => {
+  const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+  const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+
+  return (
+    <div className={`flex items-center gap-3 ${bgColor} text-white px-5 py-4 rounded-2xl shadow-2xl animate-toast min-w-[280px]`}>
+      <i className={`fa-solid ${icon} text-xl`}></i>
+      <p className="text-xs font-black flex-1 uppercase tracking-tight">{message}</p>
+      <button onClick={onClose} className="opacity-50 hover:opacity-100"><i className="fa-solid fa-times"></i></button>
+    </div>
+  );
+};
+
 const AppContent: React.FC = () => {
-  const { currentUser, login, signup, isLoading } = useApp();
+  const { currentUser, login, signup, isLoading, notifications, removeNotification } = useApp();
   const [activeTab, setActiveTab] = useState('home');
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
@@ -52,7 +68,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#011d1d] text-white">
         <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="font-black italic uppercase tracking-widest text-accent">Loading CV666 Hub...</p>
+        <p className="font-black italic uppercase tracking-widest text-accent">Loading Max999 Hub...</p>
       </div>
     );
   }
@@ -62,7 +78,7 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#011d1d] text-white">
         <div className="w-full max-w-sm space-y-8 animate-in fade-in zoom-in duration-500">
           <div className="text-center">
-            <h1 className="text-6xl font-black text-accent tracking-tighter italic mb-2">CV666</h1>
+            <h1 className="text-6xl font-black text-accent tracking-tighter italic mb-2">MAX999</h1>
             <p className="text-gray-400 font-black uppercase tracking-widest text-[10px]">Elite Gaming Hub</p>
           </div>
           <div className="bg-secondary p-8 rounded-3xl shadow-2xl border border-white/10 space-y-6">
@@ -93,6 +109,13 @@ const AppContent: React.FC = () => {
             </form>
           </div>
         </div>
+        
+        {/* Auth Notifications */}
+        <div className="fixed top-6 right-6 flex flex-col gap-3 z-[100]">
+          {notifications.map(n => (
+            <Toast key={n.id} type={n.type} message={n.message} onClose={() => removeNotification(n.id)} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -109,6 +132,8 @@ const AppContent: React.FC = () => {
       case 'game_superace': return <SuperAce />;
       case 'game_baji': return <MatchBetting />;
       case 'game_moneycoming': return <MoneyComing />;
+      case 'game_crazytime': return <CrazyTime />;
+      case 'game_fortunegems': return <FortuneGems />;
       case 'profile': return <Profile />;
       case 'invite': return <Invite />;
       default: return <Home onGameSelect={(id) => setActiveTab(id)} onWalletClick={() => setActiveTab('wallet')} />;
@@ -121,6 +146,13 @@ const AppContent: React.FC = () => {
       <main className="pb-20">{renderContent()}</main>
       {!showAdmin && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
       {showAdmin && <button onClick={() => setShowAdmin(false)} className="fixed bottom-6 right-6 bg-accent text-primary w-14 h-14 rounded-full shadow-2xl z-[100] border-4 border-[#011d1d]"><i className="fa-solid fa-power-off"></i></button>}
+      
+      {/* Global Notifications Container */}
+      <div className="fixed top-20 right-6 flex flex-col gap-3 z-[100]">
+        {notifications.map(n => (
+          <Toast key={n.id} type={n.type} message={n.message} onClose={() => removeNotification(n.id)} />
+        ))}
+      </div>
     </div>
   );
 };

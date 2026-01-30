@@ -3,6 +3,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Transaction, AdminSettings, BetRecord, Match } from '../types';
 import { supabase } from '../services/supabase';
 
+interface Notification {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
 interface AppContextType {
   currentUser: User | null;
   users: User[];
@@ -11,6 +17,9 @@ interface AppContextType {
   matches: Match[];
   adminSettings: AdminSettings;
   isLoading: boolean;
+  notifications: Notification[];
+  addNotification: (type: 'success' | 'error' | 'info', message: string) => void;
+  removeNotification: (id: string) => void;
   login: (username: string, password?: string) => Promise<{success: boolean, message: string}>;
   signup: (username: string, password?: string, phone?: string, referralCode?: string, adminSecret?: string) => Promise<{success: boolean, message: string}>;
   logout: () => void;
@@ -56,6 +65,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [matches, setMatches] = useState<Match[]>([]);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const addNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setNotifications(prev => [...prev, { id, type, message }]);
+    setTimeout(() => removeNotification(id), 5000);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   const fetchUserData = async (userId: string) => {
     try {
@@ -95,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { data: matchData } = await supabase.from('matches').select('*').order('timestamp', { ascending: false });
         if (matchData) setMatches(matchData);
 
-        const savedUser = localStorage.getItem('cv_user_session');
+        const savedUser = localStorage.getItem('max_user_session');
         if (savedUser) {
           const parsed = JSON.parse(savedUser);
           const { data: userData } = await supabase.from('users').select('*').eq('id', parsed.id).maybeSingle();
@@ -107,7 +127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               fetchUserData(userData.id);
             }
           } else {
-            localStorage.removeItem('cv_user_session');
+            localStorage.removeItem('max_user_session');
           }
         }
       } catch (e) {
@@ -132,9 +152,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error) return { success: false, message: "Database error: " + error.message };
       if (user) {
         setCurrentUser(user);
-        localStorage.setItem('cv_user_session', JSON.stringify(user));
+        localStorage.setItem('max_user_session', JSON.stringify(user));
         if (user.role === 'ADMIN') fetchAdminData();
         else fetchUserData(user.id);
+        addNotification('success', `Welcome back, ${username}!`);
         return { success: true, message: "Login successful" };
       }
       return { success: false, message: "Invalid username or password" };
@@ -149,7 +170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (checkError) return { success: false, message: "Connection error: " + checkError.message };
       if (existing) return { success: false, message: "Username already exists" };
 
-      const role = (adminSecret === 'CV666_ADMIN_SEC') ? 'ADMIN' : 'USER';
+      const role = (adminSecret === 'MAX999_ADMIN_SEC') ? 'ADMIN' : 'USER';
       const newUser = {
         username,
         password: password || '123456',
@@ -171,7 +192,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (data) {
         setCurrentUser(data);
-        localStorage.setItem('cv_user_session', JSON.stringify(data));
+        localStorage.setItem('max_user_session', JSON.stringify(data));
+        addNotification('success', 'Account created successfully!');
         return { success: true, message: "Account created successfully" };
       }
       return { success: false, message: "Signup failed" };
@@ -183,7 +205,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setCurrentUser(null);
     setTransactions([]);
-    localStorage.removeItem('cv_user_session');
+    localStorage.removeItem('max_user_session');
+    addNotification('info', 'Logged out successfully.');
   };
 
   const refreshBalance = async () => {
@@ -211,6 +234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       transactionId: txId,
       timestamp: new Date().toISOString(),
     }]);
+    addNotification('success', `Deposit order for ৳${amount} submitted!`);
     if (currentUser.role === 'ADMIN') fetchAdminData();
     else fetchUserData(currentUser.id);
   };
@@ -227,6 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       accountNumber,
       timestamp: new Date().toISOString(),
     }]);
+    addNotification('success', `Withdraw order for ৳${amount} submitted!`);
     if (currentUser.role === 'ADMIN') fetchAdminData();
     else fetchUserData(currentUser.id);
   };
@@ -251,6 +276,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await supabase.from('transactions').update({ status }).eq('id', id);
+    addNotification(status === 'APPROVED' ? 'success' : 'error', `Order ${tx.type} ${status}`);
     if (currentUser?.role === 'ADMIN') fetchAdminData();
     else if (currentUser) fetchUserData(currentUser.id);
     refreshBalance();
@@ -278,18 +304,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateAdminSettings = async (settings: AdminSettings) => {
     await supabase.from('admin_settings').update(settings).eq('id', (settings as any).id || 1);
     setAdminSettings(settings);
+    addNotification('success', 'Admin settings updated.');
   };
 
   const createMatch = async (title: string, teamA: string, teamB: string, oddsA: number, oddsB: number) => {
     await supabase.from('matches').insert([{
       title, teamA, teamB, oddsA, oddsB, status: 'OPEN', timestamp: new Date().toISOString()
     }]);
+    addNotification('success', 'Match created.');
     const { data } = await supabase.from('matches').select('*').order('timestamp', { ascending: false });
     if (data) setMatches(data);
   };
 
   const resolveMatch = async (id: string, winner: string) => {
     await supabase.from('matches').update({ status: 'RESOLVED', winner }).eq('id', id);
+    addNotification('info', `Match resolved: ${winner} won.`);
     const { data } = await supabase.from('matches').select('*').order('timestamp', { ascending: false });
     if (data) setMatches(data);
   };
@@ -304,6 +333,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newBalance = Number(currentUser.balance) - Number(amount);
     await updateUserBalance(currentUser.id, newBalance);
     await addBetRecord(currentUser.id, 'Match Betting', amount, 0, 'PENDING', `Bet on ${team}`);
+    addNotification('success', `Bet placed on ${team}!`);
     return true;
   };
 
@@ -311,18 +341,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) return;
     const bonus = Number(adminSettings.globalClaimBonus);
     await updateUserBalance(currentUser.id, Number(currentUser.balance) + bonus);
-    alert(`Success! You claimed ৳${bonus} bonus.`);
+    addNotification('success', `You claimed ৳${bonus} bonus.`);
   };
 
   const adminUpdateUser = async (id: string, updateData: any) => {
     await supabase.from('users').update(updateData).eq('id', id);
     fetchAdminData();
     if (currentUser?.id === id) refreshBalance();
+    addNotification('success', 'User updated.');
   };
 
   const deleteUser = async (id: string) => {
     await supabase.from('users').delete().eq('id', id);
     fetchAdminData();
+    addNotification('info', 'User deleted.');
   };
 
   const fetchBetHistory = async () => {
@@ -338,7 +370,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{ 
-      currentUser, users, transactions, betHistory, matches, adminSettings, isLoading,
+      currentUser, users, transactions, betHistory, matches, adminSettings, isLoading, notifications,
+      addNotification, removeNotification,
       login, signup, logout, refreshBalance, fetchBetHistory, requestDeposit, requestWithdraw,
       updateTransactionStatus, updateAdminSettings, updateUserBalance,
       giveUserBonus, claimBonus, claimGlobalBonus, adminUpdateUser,
