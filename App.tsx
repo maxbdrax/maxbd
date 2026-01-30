@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header, BottomNav } from './components/Navigation';
@@ -41,7 +42,7 @@ const AppContent: React.FC = () => {
         if (!result.success) setAuthError(result.message);
       }
     } catch (err: any) {
-      setAuthError("An unexpected error occurred");
+      setAuthError("সার্ভারের সাথে সংযোগ বিচ্ছিন্ন হয়েছে। আবার চেষ্টা করুন।");
     } finally {
       setIsProcessing(false);
     }
@@ -51,7 +52,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#011d1d] text-white">
         <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="font-black italic uppercase tracking-widest text-accent">Loading CV666 Demo...</p>
+        <p className="font-black italic uppercase tracking-widest text-accent">Loading CV666 Hub...</p>
       </div>
     );
   }
@@ -62,32 +63,32 @@ const AppContent: React.FC = () => {
         <div className="w-full max-w-sm space-y-8 animate-in fade-in zoom-in duration-500">
           <div className="text-center">
             <h1 className="text-6xl font-black text-accent tracking-tighter italic mb-2">CV666</h1>
-            <p className="text-gray-400 font-black uppercase tracking-widest text-[10px]">Demo Experience Hub</p>
+            <p className="text-gray-400 font-black uppercase tracking-widest text-[10px]">Elite Gaming Hub</p>
           </div>
           <div className="bg-secondary p-8 rounded-3xl shadow-2xl border border-white/10 space-y-6">
             <div className="flex gap-4 mb-4">
-              <button onClick={() => setIsLogin(true)} className={`flex-1 py-2 text-xs font-black rounded-xl transition ${isLogin ? 'bg-accent text-primary' : 'bg-primary/50 text-gray-400'}`}>LOGIN</button>
-              <button onClick={() => setIsLogin(false)} className={`flex-1 py-2 text-xs font-black rounded-xl transition ${!isLogin ? 'bg-accent text-primary' : 'bg-primary/50 text-gray-400'}`}>SIGNUP</button>
+              <button onClick={() => {setIsLogin(true); setAuthError('');}} className={`flex-1 py-2 text-xs font-black rounded-xl transition ${isLogin ? 'bg-accent text-primary' : 'bg-primary/50 text-gray-400'}`}>LOGIN</button>
+              <button onClick={() => {setIsLogin(false); setAuthError('');}} className={`flex-1 py-2 text-xs font-black rounded-xl transition ${!isLogin ? 'bg-accent text-primary' : 'bg-primary/50 text-gray-400'}`}>SIGNUP</button>
             </div>
             
             <form onSubmit={handleAuth} className="space-y-4">
               {authError && <div className="bg-red-900/20 border border-red-500/50 p-3 rounded-xl text-red-500 text-[10px] font-bold text-center">{authError}</div>}
-              <input type="text" value={username} required onChange={(e) => setUsername(e.target.value)} className="w-full bg-primary border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Username" />
-              {!isLogin && <input type="text" value={phone} required onChange={(e) => setPhone(e.target.value)} className="w-full bg-primary border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Phone Number" />}
-              <input type="password" value={password} required onChange={(e) => setPassword(e.target.value)} className="w-full bg-primary border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" placeholder="Password" />
+              <input type="text" value={username} required onChange={(e) => setUsername(e.target.value)} className="w-full bg-primary border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" placeholder="ইউজারনেম" />
+              {!isLogin && <input type="text" value={phone} required onChange={(e) => setPhone(e.target.value)} className="w-full bg-primary border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" placeholder="ফোন নম্বর" />}
+              <input type="password" value={password} required onChange={(e) => setPassword(e.target.value)} className="w-full bg-primary border border-white/5 rounded-2xl px-5 py-4 text-white outline-none" placeholder="পাসওয়ার্ড" />
               
               {!isLogin && (
                 <div className="flex items-center justify-between px-2">
-                  <span className="text-[10px] font-black uppercase text-gray-400">Admin Account?</span>
+                  <span className="text-[10px] font-black uppercase text-gray-400">অ্যাডমিন অ্যাকাউন্ট?</span>
                   <input type="checkbox" checked={isAdminSignup} onChange={(e) => setIsAdminSignup(e.target.checked)} className="accent-accent" />
                 </div>
               )}
               {isAdminSignup && !isLogin && (
-                <input type="password" value={adminSecret} onChange={(e) => setAdminSecret(e.target.value)} className="w-full bg-red-900/10 border border-red-500/30 rounded-2xl px-5 py-4 text-red-500 outline-none" placeholder="Admin Secret Key" />
+                <input type="password" value={adminSecret} onChange={(e) => setAdminSecret(e.target.value)} className="w-full bg-red-900/10 border border-red-500/30 rounded-2xl px-5 py-4 text-red-500 outline-none" placeholder="অ্যাডমিন সিক্রেট কি" />
               )}
               
               <button type="submit" disabled={isProcessing} className="w-full bg-accent text-primary font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest transition-all">
-                {isProcessing ? 'Processing...' : (isLogin ? 'Login' : 'Signup')}
+                {isProcessing ? 'প্রসেসিং...' : (isLogin ? 'প্রবেশ করুন' : 'তৈরি করুন')}
               </button>
             </form>
           </div>
