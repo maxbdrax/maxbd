@@ -57,8 +57,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminSettings, setAdminSettings] = useState<AdminSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchUserData = async (userId: string) => {
+    try {
+      const { data: txData } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('userId', userId)
+        .order('timestamp', { ascending: false });
+      if (txData) setTransactions(txData);
+    } catch (e) {
+      console.error("User data fetch error:", e);
+    }
+  };
+
+  const fetchAdminData = async () => {
+    try {
+      const { data: userData } = await supabase.from('users').select('*').order('createdAt', { ascending: false });
+      if (userData) setUsers(userData);
+      const { data: txData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
+      if (txData) setTransactions(txData);
+    } catch (e) {
+      console.error("Admin data fetch error:", e);
+    }
+  };
+
   useEffect(() => {
-    // Failsafe: যদি সুপাবেস কানেকশন স্লো থাকে, তবে ৫ সেকেন্ড পর এমনিতেই লোডিং শেষ করে দিবে
     const failsafe = setTimeout(() => {
       setIsLoading(false);
     }, 5000);
@@ -78,7 +101,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const { data: userData } = await supabase.from('users').select('*').eq('id', parsed.id).maybeSingle();
           if (userData) {
             setCurrentUser(userData);
-            if (userData.role === 'ADMIN') fetchAdminData();
+            if (userData.role === 'ADMIN') {
+              fetchAdminData();
+            } else {
+              fetchUserData(userData.id);
+            }
           } else {
             localStorage.removeItem('cv_user_session');
           }
@@ -92,17 +119,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     initApp();
   }, []);
-
-  const fetchAdminData = async () => {
-    try {
-      const { data: userData } = await supabase.from('users').select('*').order('createdAt', { ascending: false });
-      if (userData) setUsers(userData);
-      const { data: txData } = await supabase.from('transactions').select('*').order('timestamp', { ascending: false });
-      if (txData) setTransactions(txData);
-    } catch (e) {
-      console.error("Admin data fetch error:", e);
-    }
-  };
 
   const login = async (username: string, password?: string) => {
     try {
@@ -118,6 +134,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(user);
         localStorage.setItem('cv_user_session', JSON.stringify(user));
         if (user.role === 'ADMIN') fetchAdminData();
+        else fetchUserData(user.id);
         return { success: true, message: "Login successful" };
       }
       return { success: false, message: "Invalid username or password" };
@@ -165,6 +182,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setCurrentUser(null);
+    setTransactions([]);
     localStorage.removeItem('cv_user_session');
   };
 
@@ -172,7 +190,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) return;
     try {
       const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
-      if (data) setCurrentUser(data);
+      if (data) {
+        setCurrentUser(data);
+        if (data.role !== 'ADMIN') fetchUserData(data.id);
+      }
     } catch (e) {
       console.error("Refresh error", e);
     }
@@ -191,6 +212,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString(),
     }]);
     if (currentUser.role === 'ADMIN') fetchAdminData();
+    else fetchUserData(currentUser.id);
   };
 
   const requestWithdraw = async (method: any, amount: number, accountNumber: string) => {
@@ -206,6 +228,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString(),
     }]);
     if (currentUser.role === 'ADMIN') fetchAdminData();
+    else fetchUserData(currentUser.id);
   };
 
   const updateTransactionStatus = async (id: string, status: 'APPROVED' | 'REJECTED') => {
@@ -228,7 +251,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     await supabase.from('transactions').update({ status }).eq('id', id);
-    fetchAdminData();
+    if (currentUser?.role === 'ADMIN') fetchAdminData();
+    else if (currentUser) fetchUserData(currentUser.id);
     refreshBalance();
   };
 
